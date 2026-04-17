@@ -1,1 +1,11 @@
 .DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+
+# skill-creator eval workspace (created when running evals locally)
+dev-tracker-workspace/
+plugins/*/evals/results/

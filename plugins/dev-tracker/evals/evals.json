@@ -1,0 +1,110 @@
+{
+  "skill_name": "dev-tracker",
+  "description": "Test prompts for evaluating dev-tracker trigger accuracy and behavior quality. Each prompt simulates a realistic user request. Covers trigger recognition, workflow execution, no-git fallback, multi-project handling, correction workflow, and audit triggering. Assertions are intentionally left empty in the initial draft — add objective checks (e.g., 'response contains a DEVLOG entry with a timestamp') before running quantitative benchmarks.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "explicit-session-start",
+      "prompt": "session start",
+      "expected_output": "Skill should trigger. Reads TODO.md and latest DEVLOG.md entry. Presents session-start summary in the specified format. Writes an [in-progress] marker to DEVLOG.md.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "name": "natural-language-resume",
+      "prompt": "I'm back. What did we do last time on the Printagram migration?",
+      "expected_output": "Skill should trigger from the 'what did we do last time' phrasing even without 'session start'. Reads the latest DEVLOG.md entry and summarizes it concisely, not as a verbatim dump.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 3,
+      "name": "session-end-with-git",
+      "prompt": "Save progress, I'm wrapping up for the day.",
+      "expected_output": "Runs `git log --oneline` and `git diff --stat` since session start. Writes a session entry to DEVLOG.md with Done / Decisions / Blockers / Next sections. Replaces any [in-progress] marker. Does not invent commits or files — only reports real git output.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 4,
+      "name": "session-end-no-git",
+      "prompt": "End the session and write a summary. This directory isn't a git repo.",
+      "expected_output": "Does NOT attempt `git log` or `git diff`. Does NOT fabricate commit counts or file-change stats. Writes a DEVLOG entry based only on conversation context. Mentions that git was unavailable.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 5,
+      "name": "ambiguous-save-request-mid-work",
+      "prompt": "Looks good. Can you write down what we changed?",
+      "expected_output": "Recognizes this as a soft trigger for logging, not a full session end. Offers to append to the current session entry rather than creating a new DEVLOG entry. Does not overwrite existing Next/Blockers without confirmation.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 6,
+      "name": "multi-project-alias",
+      "prompt": "session start db_assistant",
+      "expected_output": "Reads `.dev-tracker-projects.json` (if present) to resolve the `db_assistant` alias. Switches to that project's directory, reads its own DEVLOG.md / DECISIONS.md / CLAUDE.md. Summary is scoped only to db_assistant, not mixed with other projects.",
+      "files": [".dev-tracker-projects.json"],
+      "assertions": []
+    },
+    {
+      "id": 7,
+      "name": "correction-not-silent-rewrite",
+      "prompt": "Yesterday's DEVLOG says we finished the PayPal integration. That's wrong — we only finished the webhook handler, the invoicing part is still pending. Fix it.",
+      "expected_output": "Does NOT edit the original entry silently. Appends a `### Correction (YYYY-MM-DD)` block to the relevant entry explaining the actual state. Original wording stays in place for the audit trail.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 8,
+      "name": "audit-trigger-from-confusion",
+      "prompt": "Why did we choose polling instead of webhooks for the Access sync? I can't remember and there's nothing in DECISIONS.md about it.",
+      "expected_output": "Recognizes the user's confusion about a past decision as an audit trigger. Offers to run `/dev-tracker audit` to find potentially undocumented decisions. Reports findings as a table BEFORE writing anything to DECISIONS.md. Waits for user confirmation to formalize.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 9,
+      "name": "context-restore-after-break",
+      "prompt": "I haven't touched this project in two weeks. Bring me up to speed.",
+      "expected_output": "Runs `/dev-tracker context` (not `session start`). Reads DEVLOG.md, DECISIONS.md, and any in-progress marker. Outputs: last session summary, active decisions, open blockers (with recurring ones flagged), in-progress marker if any, and a prose summary. Does NOT write an [in-progress] marker — this command is read-only.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 10,
+      "name": "save-progress-is-hard-action",
+      "prompt": "save progress",
+      "expected_output": "Writes to DEVLOG immediately. Does NOT offer, ask for confirmation, or say 'should I save this?'. Appends to the current session entry if one exists, otherwise creates one.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 11,
+      "name": "anti-fragmentation-same-day",
+      "prompt": "Log what we just did.",
+      "expected_output": "If a DEVLOG entry was already created earlier today for this project (same session), appends to that entry rather than creating a new one. Does not create a second entry for the same session unless session boundary triggers (session end, ~12h gap, project switch) are present.",
+      "files": ["DEVLOG.md"],
+      "assertions": []
+    },
+    {
+      "id": 12,
+      "name": "recurring-blocker-detection",
+      "prompt": "session end",
+      "expected_output": "At session end, scans the last ~5 DEVLOG entries. If a blocker in the current session also appeared recently, flags it as `[recurring since YYYY-MM-DD]`. If it has recurred three or more times, suggests opening a D-### entry to capture the pattern or accept the cost.",
+      "files": ["DEVLOG.md"],
+      "assertions": []
+    },
+    {
+      "id": 13,
+      "name": "anti-overlogging-DECISIONS",
+      "prompt": "I decided to rename the variable `user_id` to `userId` in this one function. Add that to DECISIONS.md.",
+      "expected_output": "Does NOT write to DECISIONS.md. Recognizes that a one-off naming change does not meet the four criteria (multiple files, real alternatives, reusable convention, important for new contributors). Either declines gently or offers to note it in the current DEVLOG entry instead. Explains briefly why it doesn't belong in DECISIONS.md.",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "dev-tracker",
+  "version": "3.2.0",
+  "description": "Structured development journal that preserves project context across Claude Code sessions.",
+  "author": {
+    "name": "Eduard Martirosyan",
+    "email": "eduard@printagram.com.mt"
+  },
+  "homepage": "https://github.com/printagram/skill-dev-tracker",
+  "repository": "https://github.com/printagram/skill-dev-tracker",
+  "license": "MIT",
+  "keywords": [
+    "development-journal",
+    "session-memory",
+    "devlog",
+    "adr",
+    "architecture-decisions",
+    "cross-session",
+    "claude-code"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "_comment": "Example .dev-tracker-projects.json. Place in a parent directory that contains multiple project folders. Aliases become arguments to `session start <alias>`.",
+
+  "projects": {
+    "WebUI": {
+      "dir": "web-app",
+      "devlog": "web-app/DEVLOG.md",
+      "decisions": "web-app/DECISIONS.md",
+      "todo": "web-app/TODO.md",
+      "taskList": "memory/project_task_list.md",
+      "claudeMd": "web-app/CLAUDE.md",
+      "git": true
+    },
+    "API": {
+      "dir": "api-server",
+      "devlog": "api-server/DEVLOG.md",
+      "decisions": "api-server/DECISIONS.md",
+      "todo": "api-server/TODO.md",
+      "taskList": null,
+      "claudeMd": "api-server/CLAUDE.md",
+      "git": true
+    },
+    "Shared": {
+      "_comment": "Example of a monorepo package — same repository as API and WebUI, but its own tracker files.",
+      "dir": "packages/shared",
+      "devlog": "packages/shared/DEVLOG.md",
+      "decisions": "packages/shared/DECISIONS.md",
+      "todo": "packages/shared/TODO.md",
+      "taskList": null,
+      "claudeMd": "packages/shared/CLAUDE.md",
+      "git": true
+    },
+    "Infra": {
+      "_comment": "Example of a non-git directory — tracker still works, session end uses the no-git fallback.",
+      "dir": "infrastructure-notes",
+      "devlog": "infrastructure-notes/DEVLOG.md",
+      "decisions": "infrastructure-notes/DECISIONS.md",
+      "todo": "infrastructure-notes/TODO.md",
+      "taskList": null,
+      "claudeMd": "infrastructure-notes/CLAUDE.md",
+      "git": false
+    }
+  }
+}

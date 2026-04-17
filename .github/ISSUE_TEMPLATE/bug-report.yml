@@ -1,0 +1,71 @@
+name: Bug report
+description: Claude behaved unexpectedly when the skill was active
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. To help us reproduce, please include the prompt Claude received, what Claude did, and what you expected instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: dev-tracker version
+      placeholder: "3.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Claude Code version, OS
+      placeholder: "Claude Code on macOS 15"
+    validations:
+      required: true
+
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Prompt / user message
+      description: The exact thing you said to Claude
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What Claude did
+      description: Actual behavior — files written, response given, tool calls made
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: According to the skill's rules, what should have happened?
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Relevant tracker file state
+      description: Contents of DEVLOG.md / DECISIONS.md / TODO.md / CLAUDE.md at the time, if relevant. Redact as needed.
+      render: markdown
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked the CHANGELOG for recent behavior changes
+          required: true
+        - label: I confirmed this is not expected behavior described in SKILL.md
+          required: true

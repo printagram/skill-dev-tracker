@@ -1,123 +1,158 @@
 # dev-tracker
 
-A Claude Code skill that maintains a structured development journal across sessions, preventing context loss between conversations.
+> Cross-session memory for Claude Code — a structured development journal that doesn't hallucinate, doesn't spam, and doesn't rewrite your notes.
 
-## Problem
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](plugins/dev-tracker/CHANGELOG.md)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-orange.svg)](https://code.claude.com)
+[![Agent Skills](https://img.shields.io/badge/Agent%20Skills-spec-purple.svg)](https://agentskills.io)
 
-Each Claude Code session starts with a blank slate. Without persistent tracking:
-- Work done in previous sessions gets forgotten or misrecorded
-- Architectural decisions lose their reasoning over time
-- Next steps get lost between conversations
-- The same questions get re-asked
+## What it does
 
-## Solution
+Claude Code loses context between sessions. You come back to a project after a week and Claude doesn't know what was decided, what's blocked, or what's next. You end up re-explaining the same things every time.
 
-`dev-tracker` maintains three files in your project root:
+`dev-tracker` fixes that with four files, each with a clear owner:
 
-| File | Purpose |
-|------|---------|
-| **DEVLOG.md** | Chronological journal — what happened when, what's next |
-| **DECISIONS.md** | Permanent decision register — what was agreed, why, when to revisit |
-| **CLAUDE.md** | Living reference — architecture, conventions, standards (updated, not duplicated) |
+| File | Purpose | Who writes it |
+|------|---------|---------------|
+| `TODO.md` | Raw notes, rough ideas | **You** — Claude never rewrites it automatically |
+| `DEVLOG.md` | Timestamped session log with Done / Decisions / Blockers / Next | Claude |
+| `DECISIONS.md` | Architecture decisions in ADR-lite format (`D-001`, `D-002`…) | Claude |
+| `CLAUDE.md` | Durable conventions that Claude Code auto-loads every session | Claude (with strict size discipline) |
 
-## Features
+## Why another journal skill?
 
-- **Session start**: shows last session's summary + next steps + blockers
-- **During work**: reminds to save progress after major blocks
-- **Session end**: writes full entry (Done/Discussions/Decisions/Blockers/Next)
-- **Decisions register**: numbered entries (D-001, D-002...) with context, rationale, revisit conditions
-- **In-progress marker**: protects against abrupt session endings
-- **Audit**: scans all project files for undocumented decisions and conventions
-- **Archiving**: auto-suggests archiving when DEVLOG exceeds 200 lines
-- **Language-aware**: matches your project's language
-- **Environment-aware**: works in Claude Code (file access) and Claude.ai (text output)
+There are a few out there. This one is different because it:
 
-## Installation
+- **Refuses to hallucinate git output.** No invented commits, no fake file-change counts. If git isn't available, it says so and uses conversation context only.
+- **Has explicit anti-fragmentation.** One DEVLOG entry per session, with session boundaries defined by hard triggers — not by "how long was the pause".
+- **Has explicit anti-overlogging for decisions.** Under-logging is recoverable via `/dev-tracker audit`. Over-logging silently pollutes `DECISIONS.md` and degrades it forever. So the default is: when in doubt, *don't* write to DECISIONS.
+- **Treats `TODO.md` as user-owned.** Never rewrites, translates, or clears it automatically.
+- **Treats `CLAUDE.md` as context tax.** Has a size warning because every byte there is paid on every future session.
+- **Handles corrections properly.** Wrong past entries get appended corrections, not silent rewrites. The audit trail stays intact.
+- **Speaks your language.** Tracker prose follows your working language; keys like `D-001`, `Status: active` stay in English.
 
-### Option 1: Global (all projects)
+Four rounds of iteration went into this (v1 → v2 → v3 → v3.1 → v3.2), each driven by real use on production projects. See [CHANGELOG](plugins/dev-tracker/CHANGELOG.md) for the full story including the v2 release bug that got fixed in v3.
 
-```bash
-mkdir -p ~/.claude/skills/dev-tracker
-cp SKILL.md ~/.claude/skills/dev-tracker/
+## Install
+
+### Option 1 — Plugin marketplace (recommended)
+
+In Claude Code:
+
+```
+/plugin marketplace add printagram/skill-dev-tracker
+/plugin install dev-tracker@printagram-skills
 ```
 
-### Option 2: Per-project
+### Option 2 — Direct install
 
 ```bash
-mkdir -p .claude/skills/dev-tracker
-cp SKILL.md .claude/skills/dev-tracker/
+# User-level (available in all projects)
+git clone https://github.com/printagram/skill-dev-tracker.git
+mkdir -p ~/.claude/skills
+cp -r skill-dev-tracker/plugins/dev-tracker ~/.claude/skills/
+
+# Or project-local (scoped to one project)
+cp -r skill-dev-tracker/plugins/dev-tracker .claude/skills/
 ```
 
-## Commands
+Restart Claude Code after either option.
 
-| Command | What it does |
-|---------|-------------|
-| `/dev-tracker` | Update today's log entry |
-| `/dev-tracker status` | Show last entry + next steps + blockers |
-| `/dev-tracker init` | Create DEVLOG.md + DECISIONS.md (reconstructs history if possible) |
-| `/dev-tracker decisions` | Show all active decisions grouped by status |
-| `/dev-tracker diff` | Summarize changes since last DEVLOG entry |
-| `/dev-tracker audit` | Scan all sources for undocumented decisions — show gap table |
-| `"session start"` | Show last session summary, ask for today's plan |
-| `"session end"` | Write full session entry, update all files |
+## Usage
 
-## DEVLOG.md Format
+### Natural language (preferred)
+
+```
+You: session start
+You: session start db_assistant       # with a project alias
+You: save progress
+You: session end
+You: what did we do last time?
+```
+
+### Slash commands
+
+```
+/dev-tracker              Write/update current session entry
+/dev-tracker status       Show last entry, blockers, next steps
+/dev-tracker context      Full context restore after a break (read-only)
+/dev-tracker init         Create DEVLOG.md, DECISIONS.md, TODO.md
+/dev-tracker decisions    Show active decisions grouped by status
+/dev-tracker diff         Summarize changes since last entry
+/dev-tracker audit        Find undocumented decisions
+```
+
+### Multi-project
+
+Create a `.dev-tracker-projects.json` in a parent directory listing your projects. See [project-registry.example.json](plugins/dev-tracker/references/project-registry.example.json). Then:
+
+```
+You: session start WebUI
+You: session start API
+```
+
+Each alias gets its own DEVLOG / DECISIONS / TODO. Supports monorepos (one repo, multiple tracked sub-projects) and non-git directories.
+
+## Example output
+
+A session-end entry looks like this:
 
 ```markdown
-# Dev Log
+## 2026-03-18 14:40 CET — Access ODBC field name mismatch
 
-## 2026-03-30 — PDF reports + Email integration
 ### Done
-- 7 PDF reports: Invoice, Quote, Creditnote, Delivery, Receipt, Print List
-- Email sending via Resend (6 modes)
-
-### Discussions
-- [Email service]: compared Resend vs Gmail API vs SMTP
-  → Outcome: chose Resend — simpler setup, webhooks built-in
+- discovered sync failures were caused by code using `id_Order`
+  while Access exposes the field as `idx_Order`
+- replaced all 14 occurrences across sync_access_to_supabase.py,
+  sync_schema.py, mod_sync.bas
+- re-ran sync, 523/523 orders synced clean
+- updated CLAUDE.md with the correct field name
 
 ### Decisions
-- Chose Resend for email (see D-006)
-
-### Blockers
-- Print Production Sheet blocked — no Access report structure exported yet
+- canonical field name in all sync code is `idx_Order` (see D-003)
 
 ### Next
-1. User Roles (Operator/Manager/Director)
-2. Export XLS
-3. Deploy to Hostinger
+1. write remediation script for the `201\` corrupted folders
+2. document the sync lifecycle in CLAUDE.md
 ```
 
-## DECISIONS.md Format
+See [`plugins/dev-tracker/examples/`](plugins/dev-tracker/examples/) for full examples of all four files.
 
-```markdown
-# Decisions
+## How it's different from…
 
-## [D-001] Short decision title
-Date: YYYY-MM-DD | Status: active | Ref: DEVLOG YYYY-MM-DD
-Context: what situation or problem triggered this decision
-Alternatives: what else was considered
-Decision: what was decided
-Rationale: why this option over the others
-Conventions: specific rules that follow from this decision
-Revisit when: condition under which to reconsider
-```
+| Tool | Scope | What it does well | Where dev-tracker fits |
+|------|-------|-------------------|-----------------------|
+| Claude's built-in `CLAUDE.md` | Auto-loaded conventions | Fast context | Too broad — mixes decisions, conventions, and narrative. dev-tracker splits these. |
+| Generic "memory" plugins | Arbitrary state | Flexible | No discipline on what to record; drifts into noise. |
+| Git commit messages | History of changes | Precise, timestamped | Describes *what* changed, not *why* or *what's next*. |
+| Issue trackers | Work to be done | Team coordination | Too heavy for a solo developer's cross-session notes. |
 
-**Statuses:** `active` | `superseded by D-###` | `deferred` | `rejected`
+`dev-tracker` fills the gap between "Claude remembers nothing between sessions" and "full-blown project management". It's a journal, not a tracker, not a wiki, not a commit history.
 
-## Audit
+## What's new in 3.2
 
-`/dev-tracker audit` scans memory files, CLAUDE.md, DECISIONS.md, and DEVLOG.md to find gaps:
+- `save progress` is now a hard action — writes immediately, no "should I save?"
+- `/dev-tracker context` for returning to a project after a break (read-only)
+- Anti-fragmentation formalized (one entry per session, explicit boundary rules)
+- Anti-overlogging rule for DECISIONS
+- Session title guidance with anti-patterns
+- Recurring blockers detection
 
-```
-| Item                  | Found in              | Should go to    | Status  |
-|-----------------------|-----------------------|-----------------|---------|
-| No nested components  | feedback_no_nested.md | DECISIONS.md    | MISSING |
-| Money fields 130px    | CLAUDE.md:110         | DECISIONS.md    | COVERED |
-| Exo 2 font            | CLAUDE.md:11          | CLAUDE.md only  | OK      |
-```
+Full history in [CHANGELOG](plugins/dev-tracker/CHANGELOG.md).
 
-Does not auto-update — shows the table and asks which items to add.
+## Contributing
+
+Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+The skill is iterated with evals — see [`plugins/dev-tracker/evals/`](plugins/dev-tracker/evals/). If you add behavior, add a matching eval prompt.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE). Use it, fork it, adapt it. If you improve it, consider upstreaming.
+
+## Acknowledgements
+
+The ADR-lite decision format is adapted from [Michael Nygard's original ADR pattern](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions). Progressive-disclosure skill structure follows [Anthropic's Agent Skills spec](https://agentskills.io).
+
+Built and iterated on real production work at [Printagram](https://printagram.com.mt) — a printing, embroidery, and advertising company in Malta migrating from Microsoft Access to a modern cloud stack. If the rules feel opinionated, it's because they come from breakage.

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "printagram-skills",
+  "description": "Production-grade Claude Code skills from Printagram. Starting with dev-tracker: cross-session memory for software projects.",
+  "version": "1.0.0",
+  "owner": {
+    "name": "Printagram",
+    "email": "eduard@printagram.com.mt"
+  },
+  "repository": "https://github.com/printagram/skill-dev-tracker",
+  "license": "MIT",
+  "plugins": [
+    {
+      "name": "dev-tracker",
+      "source": "./plugins/dev-tracker",
+      "description": "Structured development journal that preserves project context across Claude Code sessions. Four files with clear ownership, ADR-style decisions, anti-hallucination rules, and explicit anti-fragmentation.",
+      "version": "3.2.0",
+      "author": {
+        "name": "Eduard Martirosyan",
+        "email": "eduard@printagram.com.mt"
+      },
+      "homepage": "https://github.com/printagram/skill-dev-tracker",
+      "category": "productivity",
+      "keywords": [
+        "development-journal",
+        "session-memory",
+        "devlog",
+        "adr",
+        "architecture-decisions",
+        "cross-session",
+        "context-restore",
+        "claude-code"
+      ]
+    }
+  ]
+}

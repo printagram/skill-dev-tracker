@@ -1,0 +1,62 @@
+name: Feature / rule proposal
+description: Propose a new rule, command, or behavior for the skill
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening, please read [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md). Proposals that conflict with the skill's core principles ("under-logging is recoverable, over-logging is not", "no hallucination", "user-owned TODO", "clear boundaries") are unlikely to be accepted.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the real-world scenario where the current skill falls short. Concrete example preferred.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed rule, command, or behavior
+      description: What should the skill do instead?
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: eval
+    attributes:
+      label: Suggested eval prompt
+      description: What user prompt would test whether your change works? This is required — if you can't write an eval for it, the change is probably too vague.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: principles
+    attributes:
+      label: Alignment with principles
+      description: Which of the skill's core principles does this support or conflict with?
+      placeholder: |
+        - Under-logging is recoverable, over-logging is not: ...
+        - No hallucination: ...
+        - User-owned TODO: ...
+        - Clear boundaries: ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Tweak to an existing rule
+        - New rule in SKILL.md
+        - New slash command
+        - Change to file taxonomy (TODO/DEVLOG/DECISIONS/CLAUDE)
+        - Change to eval set
+        - Other
+    validations:
+      required: true

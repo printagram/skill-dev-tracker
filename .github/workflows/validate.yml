@@ -1,0 +1,129 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-structure:
+    name: Validate plugin structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          set -e
+          test -f .claude-plugin/marketplace.json || (echo "::error::Missing .claude-plugin/marketplace.json" && exit 1)
+          test -f plugins/dev-tracker/.claude-plugin/plugin.json || (echo "::error::Missing plugin.json" && exit 1)
+          test -f plugins/dev-tracker/SKILL.md || (echo "::error::Missing SKILL.md" && exit 1)
+          test -f plugins/dev-tracker/CHANGELOG.md || (echo "::error::Missing CHANGELOG.md" && exit 1)
+          test -f README.md || (echo "::error::Missing README.md" && exit 1)
+          test -f LICENSE || (echo "::error::Missing LICENSE" && exit 1)
+          echo "✓ All required files present"
+
+  validate-json:
+    name: Validate JSON files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate marketplace.json
+        run: python -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
+
+      - name: Validate plugin.json
+        run: python -c "import json; json.load(open('plugins/dev-tracker/.claude-plugin/plugin.json'))"
+
+      - name: Validate evals.json
+        run: |
+          python -c "
+          import json
+          d = json.load(open('plugins/dev-tracker/evals/evals.json'))
+          assert 'evals' in d, 'evals.json must contain an evals array'
+          assert len(d['evals']) >= 8, f'evals.json must contain at least 8 evals, found {len(d[\"evals\"])}'
+          required_fields = {'id', 'name', 'prompt', 'expected_output'}
+          for e in d['evals']:
+              missing = required_fields - set(e.keys())
+              assert not missing, f'Eval {e.get(\"id\", \"?\")} missing fields: {missing}'
+          print(f'✓ {len(d[\"evals\"])} evals validated')
+          "
+
+      - name: Validate project-registry.example.json
+        run: python -c "import json; json.load(open('plugins/dev-tracker/references/project-registry.example.json'))"
+
+  validate-versions-in-sync:
+    name: Versions in sync across manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version consistency
+        run: |
+          python3 << 'EOF'
+          import json, re, sys
+
+          # marketplace.json plugin entry
+          marketplace = json.load(open('.claude-plugin/marketplace.json'))
+          dt_entry = next((p for p in marketplace['plugins'] if p['name'] == 'dev-tracker'), None)
+          assert dt_entry, 'dev-tracker plugin not found in marketplace.json'
+          marketplace_version = dt_entry['version']
+
+          # plugin.json
+          plugin_json = json.load(open('plugins/dev-tracker/.claude-plugin/plugin.json'))
+          plugin_version = plugin_json['version']
+
+          # SKILL.md frontmatter
+          skill_md = open('plugins/dev-tracker/SKILL.md').read()
+          m = re.search(r'^version:\s*(\S+)\s*$', skill_md, re.MULTILINE)
+          assert m, 'version not found in SKILL.md frontmatter'
+          skill_version = m.group(1)
+
+          versions = {
+              '.claude-plugin/marketplace.json': marketplace_version,
+              'plugins/dev-tracker/.claude-plugin/plugin.json': plugin_version,
+              'plugins/dev-tracker/SKILL.md': skill_version,
+          }
+
+          print('Detected versions:')
+          for loc, ver in versions.items():
+              print(f'  {loc}: {ver}')
+
+          if len(set(versions.values())) != 1:
+              print('::error::Versions are out of sync', file=sys.stderr)
+              sys.exit(1)
+
+          print(f'✓ All versions in sync: {skill_version}')
+          EOF
+
+  validate-skill-frontmatter:
+    name: SKILL.md frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required frontmatter fields
+        run: |
+          python3 << 'EOF'
+          import re, sys
+          content = open('plugins/dev-tracker/SKILL.md').read()
+          m = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+          assert m, 'SKILL.md must start with YAML frontmatter'
+          fm = m.group(1)
+          for field in ['name', 'description', 'version']:
+              if not re.search(rf'^{field}:\s*.+$', fm, re.MULTILINE):
+                  print(f'::error::Missing frontmatter field: {field}', file=sys.stderr)
+                  sys.exit(1)
+          # check description length (skill-creator guidance: substantive, not one line)
+          desc_match = re.search(r'^description:\s*(.+?)$', fm, re.MULTILINE | re.DOTALL)
+          desc = desc_match.group(1).strip()
+          if len(desc) < 100:
+              print(f'::warning::description is short ({len(desc)} chars) — may under-trigger')
+          print(f'✓ Frontmatter valid (description: {len(desc)} chars)')
+          EOF

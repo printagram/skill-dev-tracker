@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/printagram/skill-dev-tracker/discussions
+    about: For general questions, usage help, or discussion — use GitHub Discussions instead of filing an issue.

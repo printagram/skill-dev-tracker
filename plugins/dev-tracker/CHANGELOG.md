@@ -2,6 +2,25 @@
 
 All notable changes to `dev-tracker` are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.3.0] — 2026-06-08
+
+### Added
+- **Coexistence with Claude Code auto-memory** — new section defining behavior when a project already uses Claude Code's native `memory/` + `MEMORY.md` store: that store is the system of record, decisions are checked there before any `D-###` is written (no duplication), chronology appends to the existing memory file instead of a parallel `DEVLOG.md`, and the `MEMORY.md` index gets the same lean / context-tax discipline already applied to `CLAUDE.md`.
+- **CLAUDE.md ownership guard** — distinguishes skill-managed `CLAUDE.md` (safe to append to and trim) from team-authored, version-controlled `CLAUDE.md` (never reorder, rewrite, or auto-trim; append only on explicit request). Prevents clobbering a hand-written project brief. "What this skill manages" table updated to match.
+- **Sensitive-data rule** — never write credentials, secrets, customer/employee PII, or financial record contents into tracker files (they are committed to git and re-read every session); log counts and references instead of payloads.
+- **Eval assertions** — objective assertions wired into all 13 prompts in `evals/evals.json` (`regex` / `contains_all` plus an `llm_judge` behavioral check), so the set can be graded quantitatively rather than only read.
+- Two more audit triggers in `SKILL.md`: new-contributor onboarding and a planned major refactor (folded in from `references/audit-heuristics.md` so triggers live in one place).
+- **Real `$ARGUMENTS` command dispatch** — the "Commands" section is now a deterministic dispatch table keyed on `$ARGUMENTS` (`/dev-tracker audit` → run the Audit workflow, `/dev-tracker context` → read-only restore, etc.) instead of a prose list the model had to infer. Unrecognized arguments fall back to free-text intent. Added an `argument-hint` to the frontmatter for slash-command autocomplete. No separate `commands/` directory is needed: in Claude Code a skill and its `/name` slash command are one mechanism, and `SKILL.md` stays the single source of truth.
+- **Coexistence with Claude Code native tasks** — new section defining how the ephemeral in-session task list (`TaskCreate` / `TaskUpdate` / `TaskList`) relates to this skill's durable task tracking. Two layers, not competitors: seed the native list from the durable backlog at session start, drive live progress through it during work, and fold it back (`completed` → `### Done`, `pending` → `### Next`) at session end. The native list is where work is run, never where it is recorded. Session start (step 11) and session end now point to it.
+
+### Fixed
+- `evals/README.md` claimed "eight prompts" while `evals.json` already held 13 — prompts 9–13 (covering the 3.2.0 features) were added without updating the README. README now lists all 13.
+- `references/audit-heuristics.md` had drifted from `SKILL.md`: it lacked status-drift detection and the external-memory check, and it overloaded the status word `COVERED` (it meant "documented in the wrong file" there, but "recorded in the external store" in `SKILL.md`). The heuristics file now defers the full workflow and the drift verdicts (`SHIPPED` / `PARTIAL` / `NOT-FOUND`) to `SKILL.md`, renames the wrong-file status to `WRONG-FILE`, and adds `COVERED (external)`.
+
+### Changed
+- Version bumped to 3.3.0 in `SKILL.md` frontmatter and `.claude-plugin/plugin.json`.
+- `references/audit-heuristics.md` rescoped to the undocumented-decisions heuristics only; the duplicated audit workflow and trigger list were removed in favor of the single copy in `SKILL.md`.
+
 ## [3.2.0] — 2026-04-17
 
 ### Fixed

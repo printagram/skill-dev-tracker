@@ -1,7 +1,8 @@
 ---
 name: dev-tracker
 description: Maintain a structured development journal for software projects that preserves context across Claude Code sessions. Use this skill whenever the user mentions session start, session end, save progress, DEVLOG, DECISIONS, ADR, architecture decision record, project journal, development log, cross-session memory, what was done previously, or asks to resume work on a tracked project — even if they do not explicitly name the skill. Also use when the user wants to initialize tracking files, audit undocumented conventions, or maintain continuity across multiple related work sessions on the same codebase.
-version: 3.2.0
+argument-hint: "[status | context | init | decisions | diff | audit]"
+version: 3.3.0
 ---
 
 # Dev Tracker
@@ -21,7 +22,9 @@ Use this skill for tracked software work where losing session context is costly.
 | `TODO.md` | Raw notes, ideas, rough tasks, reminders | User-owned |
 | `DEVLOG.md` | Chronological session log: what happened, blockers, next steps | Claude-managed |
 | `DECISIONS.md` | Important decisions with rationale and revisit conditions | Claude-managed |
-| `CLAUDE.md` | Conventions, architecture notes, standards, recurring implementation facts | Claude-managed — see warning below |
+| `CLAUDE.md` | Conventions, architecture notes, standards, recurring implementation facts | Skill-managed if skill-created; append-only if team-authored — see warning below |
+
+When a project uses Claude Code's native `memory/` store, the "Claude-managed" rows above defer to it — see "Coexistence with Claude Code auto-memory" below before treating `DEVLOG.md` / `DECISIONS.md` as the system of record.
 
 ### ⚠️ CLAUDE.md warning
 
@@ -38,7 +41,45 @@ Do NOT write to `CLAUDE.md`:
 - anything that will become obsolete within a sprint
 - decisions with rationale (those go in `DECISIONS.md`, not here)
 
-If `CLAUDE.md` grows past ~150 lines, prompt the user to review and trim it.
+If a skill-managed `CLAUDE.md` grows past ~150 lines, prompt the user to review and trim it. Never fire this trim prompt at a team-authored `CLAUDE.md` — see ownership below.
+
+### CLAUDE.md ownership: never clobber human-authored instructions
+
+`CLAUDE.md` is frequently a hand-written, version-controlled project brief — not a file this skill created. Before editing it, decide which kind it is:
+
+- **Skill-managed** — scaffolded by this skill itself (e.g. from the `CLAUDE.md` template in `references/templates.md`), holding only the Architecture / Conventions / Operational Notes scaffold. Safe to append durable conventions to, and safe to suggest trimming.
+- **Team-authored** — checked into the repo, containing project instructions, onboarding, or rules clearly written by a human. Treat it as read-mostly: append a durable convention only on explicit user request, never reorder or rewrite it, and never apply the ~150-line trim prompt to it.
+
+When unsure, assume team-authored. Adding a convention is reversible; silently restructuring someone's project brief is not.
+
+## Coexistence with Claude Code auto-memory
+
+Claude Code has its own persistent memory: a `memory/` directory of topic files plus a `MEMORY.md` index that is auto-loaded every session. When a project already uses it, that store — not this skill's files — is the system of record. Do not run a second, competing journal beside it; parallel journals produce duplicate decisions and conflicting histories.
+
+Detect it: look for `memory/MEMORY.md` (often under `.claude/.../memory/`) or a `taskList` path in the project registry.
+
+When auto-memory is present:
+- **Decisions of record live in the memory store, not `DECISIONS.md`.** Before writing any `D-###`, search the memory store. If the choice is already captured there, reference it — do not copy it into `DECISIONS.md`. Only stand up a local `DECISIONS.md` if the user explicitly wants ADR-style entries alongside memory.
+- **Chronology may already live in a memory file** (e.g. a `project_chronology.md` or task-list file). Append session history there, in the project's established format, instead of starting a parallel `DEVLOG.md` — unless the user wants both.
+- **The memory index is itself context tax.** `MEMORY.md` is auto-loaded every session, exactly like `CLAUDE.md`, so the same lean discipline applies: one-line index entries, detail pushed into topic files. If `MEMORY.md` nears its size limit, flag it and offer to trim index lines — overflow there silently truncates what loads.
+- **Audit reflects this.** During `/dev-tracker audit`, a convention already recorded in the memory store is `COVERED (external)`, never `MISSING` (see the Audit workflow).
+
+When no auto-memory store exists, this skill's four files are the system of record and everything below applies normally.
+
+## Coexistence with Claude Code native tasks
+
+Claude Code also has an in-session task list — `TaskCreate` / `TaskUpdate` / `TaskList`, status `pending → in_progress → completed`. It is ephemeral working memory for the *current* session: it disappears when the session ends and is never the system of record. It does not replace this skill's durable, cross-session task tracking (`TODO.md`, the last DEVLOG entry's `### Next`, or the registry `taskList` file).
+
+Treat them as two layers, not two competitors:
+- **Durable layer** (this skill's files / the memory store) — the backlog and history that survive across sessions. Authoritative; it sits in the source-of-truth priority. The ephemeral list does not.
+- **Live layer** (native tasks) — the checklist for executing *today's* work. Fast, visible, harness-integrated.
+
+How they hand off:
+- **At session start**, optionally seed the native list from the durable layer: the last DEVLOG `### Next`, plus the registry `taskList` items you actually plan to touch today. Do not import the whole backlog — only today's slice, or the live list becomes noise.
+- **During work**, drive progress through the native list (`in_progress` / `completed`). Do not mirror every native task back into the files mid-session — that is exactly the churn the "Anti-fragmentation" rule prevents.
+- **At session end**, fold the live list back into the durable record: completed native tasks become `### Done` lines and get marked done / archived in the registry `taskList` file (or `TODO.md`); still-pending ones flow into `### Next` and the backlog. Then let the native list go — it would vanish anyway.
+
+Never treat the native task list as the place a decision, blocker, or backlog item is *recorded*. It is where work is *run*, not where it is *remembered*.
 
 ## Operating rules
 
@@ -123,11 +164,13 @@ When the user says `session start`, starts work, or asks what happened previousl
 2. Read `TODO.md` if it exists
 3. Read the latest entry in `DEVLOG.md` if it exists
 4. Read `DECISIONS.md` if it exists and only surface relevant active decisions
-5. If a project registry exists, resolve the requested alias
+5. Resolve the requested project — accept either a registry alias OR a folder name (e.g. `session start WebUI` → the `supabase-webui` dir). Match case-insensitively against registry aliases first, then against directory names under the workspace.
 6. If git is available, inspect recent commits for context
-7. Present a concise session-start summary
-8. Write an in-progress marker (see "In-progress marker" section)
-9. Ask what today's focus is only if it is not already obvious from the user's request
+7. **Drift sniff (lightweight only).** If git is available, compare the date of the latest `DEVLOG.md` entry against `git log`. If newer commits exist, add one line to the summary — "⚠ DEVLOG behind git by ~N days / M commits — run `/dev-tracker audit` to reconcile" — and stop there. Do NOT verify each task's status inline; full status-drift reconciliation is the `audit` command's job, not session start's.
+8. Present a concise session-start summary
+9. Write an in-progress marker (see "In-progress marker" section)
+10. Ask what today's focus is only if it is not already obvious from the user's request
+11. Optionally seed the in-session task list (`TaskCreate`) from the last `### Next` and today's slice of the registry task list — see "Coexistence with Claude Code native tasks"
 
 ### TODO handling
 
@@ -139,7 +182,7 @@ Read it, classify items silently into:
 - idea
 - unclear
 
-Then:
+Then (if the project uses Claude Code auto-memory, target the memory store instead of `DECISIONS.md` / `DEVLOG.md` — see "Coexistence with Claude Code auto-memory"):
 - propose moving concrete near-term work into `DEVLOG.md` under `### Next`
 - propose saving architectural ideas into `DECISIONS.md` as `deferred` when appropriate
 - propose moving stable conventions into `CLAUDE.md`
@@ -213,12 +256,16 @@ If you find yourself about to write a second entry on the same day for the same 
 
 When the user says `session end`, asks to save progress, or requests a structured summary:
 
+> If the project uses Claude Code auto-memory (see "Coexistence with Claude Code auto-memory"), steps 5–8 route to the memory store: append the session chronology to the project's memory chronology file and reference decisions already recorded there, instead of writing a parallel `DEVLOG.md` / `DECISIONS.md`.
+>
+> If you drove this session through Claude Code native tasks (`TaskList`), reconcile them before writing (see "Coexistence with Claude Code native tasks"): completed tasks become `### Done` lines, still-pending ones flow into `### Next`.
+
 1. If git is available, run `git log --oneline` since session start to collect commits
 2. If git is available, run `git diff --stat` to count files and lines changed
-3. If git is available, cross-reference commits with any task list to identify completed tasks
+3. If git is available, cross-reference commits with the durable task list (registry `taskList` / `TODO.md`, not the ephemeral native list) to identify completed tasks
 4. Generate a structured summary before writing the entry
 5. Update or create the current `DEVLOG.md` session entry (replace the `[in-progress]` marker if present)
-6. If a task list file exists, move completed tasks to archive
+6. If a durable task-list file (registry `taskList`) exists, move completed tasks to archive
 7. Add any important architectural decisions to `DECISIONS.md`
 8. Update `CLAUDE.md` only with durable conventions or reference material (respect the size warning)
 9. Keep next steps concrete and ordered by priority
@@ -382,15 +429,15 @@ If a `.dev-tracker-projects.json` file exists, use it to resolve aliases. See `r
 
 The registry supports an optional `taskList` field pointing to a memory-based task list file. When present, the session start summary includes a full task table from that file.
 
-For `session start [ProjectAlias]`:
-1. resolve the alias
+For `session start [ProjectName | folder]`:
+1. resolve the argument as a registry alias first; if no alias matches, treat it as a folder name and match (case-insensitive) against directory names under the workspace
 2. switch into the project directory
 3. read that project's log files, task list, and `CLAUDE.md`
-4. if git is available, run `git log --oneline -10` for recent context
+4. if git is available, run `git log --oneline -10` for recent context, and apply the lightweight drift sniff (step 7 of "Session start workflow") — flag if `DEVLOG.md` is behind git and point to `/dev-tracker audit`
 5. present the session start summary scoped to that project, including task table when present
 6. summarize only that project
 
-Without an alias, detect the project from the current working directory.
+Without an argument, detect the project from the current working directory.
 
 ### Monorepo / multiple projects in one repository
 
@@ -446,14 +493,20 @@ Run or strongly suggest `/dev-tracker audit` when:
 - the user seems confused about past decisions
 - the discussion is about architecture and prior choices matter
 - the project has accumulated several sessions and hidden conventions are likely
+- a new contributor is onboarding to a tracked project
+- a major refactor is planned that may invalidate past decisions
+
+`audit` is the heavyweight reconciliation command — it does the full cross-check that session start deliberately skips. Run it on demand, not on every session.
 
 During audit:
-1. scan `DEVLOG.md`, `DECISIONS.md`, `CLAUDE.md`, and `TODO.md`
-2. identify repeated conventions, explicit choices, or rejected alternatives
-3. compare them against existing decision entries
-4. return findings first
-5. ask which missing items should be formalized
-6. only then update files
+1. scan `DEVLOG.md`, `DECISIONS.md`, `CLAUDE.md`, `TODO.md`, and any task-list / external memory store referenced by the registry (`taskList` field) or present at a known path (e.g. `.claude/.../memory/`)
+2. **Status-drift detection (do this first — it is the highest-value check).** For every task or item whose notes claim a status (done / pending / planned / blocked / not-started), verify it against actual repo state: `git log` for the feature's commits + a `grep`/file check for the artifact. Report each mismatch — most commonly "marked pending but already shipped" (and its inverse, "marked done but no trace"). For mass scans, fan out parallel read-only search agents grouped by feature. Verdicts: `SHIPPED` / `PARTIAL` / `NOT-FOUND`, each with a commit hash or file path as evidence.
+3. **Git-gap.** If `DEVLOG.md`'s latest entry predates recent commits, report the gap and offer to backfill compressed daily entries reconstructed from `git log` + memory.
+4. identify repeated conventions, explicit choices, or rejected alternatives (undocumented-decisions scan)
+5. compare them against existing decision entries — **and before marking any item `MISSING`, check the external memory store too.** If the decision/convention is already recorded there, status is `COVERED (external)`, not `MISSING`. Skipping this produces false-positive promotions that pollute `DECISIONS.md`. If a project keeps its decisions of record in an external store, say so plainly rather than re-adding duplicates.
+6. return findings first, as separate tables: **Status Drift** (from steps 2-3) and **Undocumented Decisions** (from steps 4-5)
+7. ask which items to fix / formalize
+8. only then update files — and when fixing drift, correct the stale source (task list, index, note) to match verified reality
 
 Never auto-write audit findings without user confirmation.
 
@@ -467,7 +520,33 @@ Before destructive operations:
 
 If the action is irreversible and the replacement has not been validated, stop and ask.
 
-## Commands this skill should support
+### Never write secrets or personal data into tracker files
+
+`DEVLOG.md`, `DECISIONS.md`, and `CLAUDE.md` are often committed to git and re-read every session — the wrong home for anything sensitive. When logging work, and especially data operations like migrations, backfills, or manual fixes, record *what* happened, never the sensitive payload:
+
+- no credentials, API keys, tokens, connection strings, or `.env` values
+- no customer or employee PII (names tied to contact details, emails, phone numbers, addresses, government or tax IDs)
+- no financial record contents (account numbers, card data, invoice lines tied to a person)
+
+Prefer counts and references over contents: "backfilled 1659 products with empty `price_item`", not the rows; "fixed the payment on order #25647", not the customer's bank details. If a sensitive value is essential to reproduce the work later, point to where it lives (a secret manager, a row id) instead of pasting it in.
+
+## Commands — `$ARGUMENTS` dispatch
+
+This skill *is* the `/dev-tracker` command (in Claude Code a skill and a slash command are the same mechanism). When the user types `/dev-tracker`, the skill runs, and whatever follows the command name arrives as `$ARGUMENTS` — e.g. `/dev-tracker audit` → `$ARGUMENTS` = `audit`. Dispatch on it deterministically; do not wait to infer the subcommand from surrounding prose.
+
+| `$ARGUMENTS` | Action | Where the detail lives |
+|--------------|--------|------------------------|
+| _(empty)_ | Write or update the current session entry | "During work" → Hard save |
+| `status` | Show last entry, blockers, next steps (read-only) | below |
+| `context` | Full read-only context restore — does NOT write an `[in-progress]` marker | below |
+| `init` | Create missing tracking files | `references/templates.md` |
+| `decisions` | Show active decisions grouped by status | `DECISIONS.md` |
+| `diff` | Summarize changes since the last entry | "No-git fallback" when git is absent |
+| `audit` | Heavyweight reconciliation | "Audit workflow" |
+
+If `$ARGUMENTS` matches none of the above, treat the whole string as free-text intent (e.g. `/dev-tracker resume the webui work`) and pick the closest workflow rather than erroring. The natural-language hard/soft triggers under "Trigger policy" still apply when the skill is invoked without a slash command.
+
+Each subcommand in detail:
 
 ### `/dev-tracker`
 Write or update the current session entry.
@@ -498,7 +577,7 @@ Show active decisions grouped by status.
 Summarize meaningful changes since the last devlog entry. Use git if available; otherwise fall back to comparing the last DEVLOG entry against the current conversation state (see "No-git fallback").
 
 ### `/dev-tracker audit`
-Scan project notes and logs for likely undocumented decisions. Report findings first. Never auto-write audit findings without user confirmation.
+Heavyweight reconciliation. Does three things, in order: (1) **status drift** — verify every claimed task status against git + code, surface "marked pending but shipped" and its inverse; (2) **git-gap** — flag if DEVLOG trails recent commits, offer backfill; (3) **undocumented decisions** — scan for conventions/choices missing from `DECISIONS.md`, but mark `COVERED (external)` rather than `MISSING` when they already live in an external memory store. Report findings first as separate tables. Never auto-write without user confirmation.
 
 ## Implementation notes
 

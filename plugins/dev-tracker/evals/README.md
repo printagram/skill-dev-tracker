@@ -18,7 +18,7 @@ This runs each prompt with and without the skill, grades the results, and iterat
 
 ## The prompts
 
-The eight prompts in `evals.json` cover:
+The 13 prompts in `evals.json` cover trigger recognition, workflow execution, anti-hallucination, multi-project handling, the correction workflow, and audit triggering:
 
 1. Explicit `session start` command (trigger accuracy)
 2. Natural-language resume ("what did we do last time?")
@@ -28,17 +28,14 @@ The eight prompts in `evals.json` cover:
 6. Multi-project alias switching
 7. Correction-not-silent-rewrite workflow
 8. Audit trigger from user confusion
+9. Context restore after a break (read-only `/dev-tracker context`)
+10. `save progress` is a hard action (no offer, no confirmation)
+11. Anti-fragmentation: same-day save appends rather than splitting
+12. Recurring-blocker detection at session end
+13. Anti-overlogging guard for `DECISIONS.md`
 
-## Adding assertions
+## Assertions
 
-The `assertions` array for each prompt is intentionally empty in the initial draft. Before running quantitative benchmarks, add objective checks. Example for prompt 3:
+Each prompt in `evals.json` now carries objective assertions (`regex`, `contains_all`) plus an `llm_judge` check for behavior that cannot be matched literally — e.g. "invents no git stats", "writes no `[in-progress]` marker", "waits for confirmation before writing". Tighten or extend these before treating the pass rate as a benchmark.
 
-```json
-"assertions": [
-  { "text": "response contains a DEVLOG.md entry with YYYY-MM-DD HH:MM timestamp", "type": "regex", "pattern": "## \\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}" },
-  { "text": "response includes Done / Next sections", "type": "contains_all", "values": ["### Done", "### Next"] },
-  { "text": "response does NOT invent commit counts when git was not run", "type": "llm_judge", "criterion": "no fabricated git stats" }
-]
-```
-
-Subjective checks (tone, helpfulness, "does this feel right") should stay qualitative — review them via the eval viewer rather than forcing assertions.
+Keep purely subjective qualities (tone, helpfulness, "does this feel right") out of the assertions — review them via the eval viewer rather than forcing them into checks.

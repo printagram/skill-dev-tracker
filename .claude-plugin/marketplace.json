@@ -14,7 +14,7 @@
       "name": "dev-tracker",
       "source": "./plugins/dev-tracker",
       "description": "Structured development journal that preserves project context across Claude Code sessions. Four files with clear ownership, ADR-style decisions, anti-hallucination rules, and explicit anti-fragmentation.",
-      "version": "3.2.0",
+      "version": "3.3.0",
       "author": {
         "name": "Eduard Martirosyan",
         "email": "eduard@printagram.com.mt"
